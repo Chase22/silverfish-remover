@@ -1,0 +1,18 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "de.chasenet.minecraft.silverfishremover.mixins",
+  "target": "@env(DEFAULT)",
+  "refmap": "mixins.silverfish.refmap.json",
+  "compatibilityLevel": "JAVA_11",
+  "mixins": [
+    "blocks.SilverfishMixin"
+  ],
+  "client": [
+  ],
+  "server": [
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
