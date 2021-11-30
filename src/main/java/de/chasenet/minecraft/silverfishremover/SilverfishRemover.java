@@ -1,27 +1,28 @@
 package de.chasenet.minecraft.silverfishremover;
 
-import mcp.MethodsReturnNonnullByDefault;
-import net.minecraft.block.AbstractBlock;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.SilverfishBlock;
-import net.minecraft.util.text.IFormattableTextComponent;
-import net.minecraft.util.text.StringTextComponent;
+import net.minecraft.entity.monster.SilverfishEntity;
+import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegistryEvent;
+import net.minecraftforge.event.entity.living.LivingSpawnEvent;
+import net.minecraftforge.event.world.BlockEvent;
+import net.minecraftforge.event.world.ExplosionEvent;
+import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.InterModComms;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.event.lifecycle.InterModEnqueueEvent;
-import net.minecraftforge.fml.event.lifecycle.InterModProcessEvent;
 import net.minecraftforge.fml.event.server.FMLServerStartingEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.registries.ForgeRegistry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 // The value here should match an entry in the META-INF/mods.toml file
@@ -34,10 +35,6 @@ public class SilverfishRemover {
     public SilverfishRemover() {
         // Register the setup method for modloading
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::setup);
-        // Register the enqueueIMC method for modloading
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::enqueueIMC);
-        // Register the processIMC method for modloading
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::processIMC);
         // Register the doClientStuff method for modloading
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::doClientStuff);
 
@@ -56,21 +53,6 @@ public class SilverfishRemover {
         LOGGER.info("Got game settings {}", event.getMinecraftSupplier().get().gameSettings);
     }
 
-    private void enqueueIMC(final InterModEnqueueEvent event) {
-        // some example code to dispatch IMC to another mod
-        InterModComms.sendTo("silverfish-remover", "helloworld", () -> {
-            LOGGER.info("Hello world from the MDK");
-            return "Hello world";
-        });
-    }
-
-    private void processIMC(final InterModProcessEvent event) {
-        // some example code to receive and process InterModComms from other mods
-        LOGGER.info("Got IMC {}", event.getIMCStream().
-                map(m -> m.getMessageSupplier().get()).
-                collect(Collectors.toList()));
-    }
-
     // You can use SubscribeEvent and let the Event Bus discover methods to call
     @SubscribeEvent
     public void onServerStarting(FMLServerStartingEvent event) {
@@ -86,6 +68,37 @@ public class SilverfishRemover {
         public static void onBlocksRegistry(final RegistryEvent.Register<Block> blockRegistryEvent) {
             // register a new block here
             LOGGER.info("HELLO from Register Block");
+        }
+    }
+
+    @Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.FORGE)
+    public static class TickEventListener {
+
+        @SubscribeEvent
+        public static void onBreakBlock(final BlockEvent.BreakEvent breakEvent) {
+            final BlockState state = breakEvent.getState();
+            if (state.getBlock() instanceof SilverfishBlock) {
+                breakEvent.setCanceled(true);
+                breakEvent.getWorld().removeBlock(breakEvent.getPos(), false);
+            }
+        }
+
+        @SubscribeEvent
+        public static void onExplosion(final ExplosionEvent.Detonate detonateEvent) {
+            List<BlockPos> positionsToRemove = detonateEvent.getAffectedBlocks().stream()
+                    .filter(Objects::nonNull)
+                    .filter(blockPos -> detonateEvent.getWorld().getBlockState(blockPos).getBlock() instanceof SilverfishBlock)
+                    .peek(blockPos -> detonateEvent.getWorld().removeBlock(blockPos, false)).collect(Collectors.toList());
+
+            detonateEvent.getAffectedBlocks().removeAll(positionsToRemove);
+        }
+
+        @SubscribeEvent
+        public static void checkSpawnEvent(final LivingSpawnEvent.CheckSpawn checkSpawnEvent) {
+            if (checkSpawnEvent.getEntity() instanceof SilverfishEntity) {
+                LOGGER.info("Denied Spawn");
+                checkSpawnEvent.setResult(Event.Result.DENY);
+            }
         }
     }
 }
